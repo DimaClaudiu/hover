@@ -116,7 +116,7 @@ class BokehBaseExplorer(Loggable, ABC):
         """
         self._info("Setting up widgets")
         self._setup_search_highlight()
-        self._setup_subset_toggle()
+        # self._setup_subset_toggle()
 
     @abstractmethod
     def _layout_widgets(self):

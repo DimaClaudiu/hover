@@ -38,7 +38,7 @@ class BokehTextAnnotator(BokehDataAnnotator, BokehForText):
 
         layout_rows = (
             row(self.search_pos, self.search_neg),
-            row(self.data_key_button_group),
+            # row(self.data_key_button_group),
             row(self.annotator_input, self.annotator_apply, self.annotator_export),
         )
         return column(*layout_rows)

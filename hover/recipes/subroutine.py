@@ -83,7 +83,7 @@ def standard_annotator(dataset, **kwargs):
     annotator = explorer_cls.from_dataset(
         dataset,
         {_k: _k for _k in subsets},
-        title="Annotator: apply labels to the selected points",
+        title=" ",
         **kwargs,
     )
     annotator.plot()

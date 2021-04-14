@@ -13,7 +13,7 @@ from .base import BokehBaseExplorer
 
 class BokehDataFinder(BokehBaseExplorer):
     """
-    ???+ note "Plot data points in grey ('gainsboro') and highlight search positives in coral."
+    ???+ note "Plot data points in grey ('red') and highlight search positives in coral."
 
         Features:
 
@@ -22,11 +22,11 @@ class BokehDataFinder(BokehBaseExplorer):
 
     SUBSET_GLYPH_KWARGS = {
         _key: {
-            "constant": {"line_alpha": 0.4},
+            "constant": {"line_alpha": 1},
             "search": {
                 "size": ("size", 10, 5, 7),
                 "fill_alpha": ("fill_alpha", 0.4, 0.1, 0.2),
-                "color": ("color", "coral", "linen", "gainsboro"),
+                "color": ("color", "navy", "navy", "navy"),
             },
         }
         for _key in ["raw", "train", "dev", "test"]
@@ -42,7 +42,7 @@ class BokehDataFinder(BokehBaseExplorer):
         """
         for _key, _source in self.sources.items():
             self.figure.circle(
-                "x", "y", name=_key, source=_source, **self.glyph_kwargs[_key]
+                "x", "y", name=_key, source=_source, **self.SUBSET_GLYPH_KWARGS[_key]
             )
             self._good(f"Plotted subset {_key} with {self.dfs[_key].shape[0]} points")
 
@@ -75,7 +75,7 @@ class BokehDataAnnotator(BokehBaseExplorer):
         color_dict = self.auto_color_mapping()
 
         def get_color(label):
-            return color_dict.get(label, "gainsboro")
+            return color_dict.get(label, "red")
 
         for _key, _df in self.dfs.items():
             _color = _df["label"].apply(get_color).tolist()
@@ -167,7 +167,7 @@ class BokehDataAnnotator(BokehBaseExplorer):
 
         # assign callbacks
         self.annotator_apply.on_click(self._callback_apply)
-        self.annotator_apply.on_click(self._callback_subset_display)
+        # self.annotator_apply.on_click(self._callback_subset_display)
         self.annotator_export.on_click(self._callback_export)
 
     def plot(self):
@@ -257,7 +257,7 @@ class BokehSoftLabelExplorer(BokehBaseExplorer):
         color_dict = self.auto_color_mapping()
 
         def get_color(label):
-            return color_dict.get(label, "gainsboro")
+            return color_dict.get(label, "red")
 
         # infer glyph alpha from pseudo-percentile of soft label scores
         scores = np.concatenate(
@@ -315,7 +315,7 @@ class BokehMarginExplorer(BokehBaseExplorer):
 
     SUBSET_GLYPH_KWARGS = {
         _key: {
-            "constant": {"color": "gainsboro", "line_alpha": 0.5, "fill_alpha": 0.0},
+            "constant": {"color": "red", "line_alpha": 0.5, "fill_alpha": 0.0},
             "search": {"size": ("size", 10, 5, 7)},
         }
         for _key in ["raw", "train", "dev"]
@@ -415,7 +415,7 @@ class BokehSnorkelExplorer(BokehBaseExplorer):
 
     SUBSET_GLYPH_KWARGS = {
         "raw": {
-            "constant": {"line_alpha": 1.0, "color": "gainsboro"},
+            "constant": {"line_alpha": 1.0, "color": "red"},
             "search": {
                 "size": ("size", 10, 5, 7),
                 "fill_alpha": ("fill_alpha", 0.4, 0.05, 0.2),
