@@ -16,6 +16,7 @@ from tqdm import tqdm
 from hover import module_config
 from hover.core import Loggable
 from hover.utils.bokeh_helper import auto_label_color
+from hover.utils.misc import current_time
 from bokeh.models import (
     Button,
     Dropdown,
@@ -117,6 +118,7 @@ class SupervisableDataset(Loggable):
         self.synchronize_df_to_dictl()
         self.setup_widgets()
         # self.setup_label_coding() # redundant if setup_pop_table() immediately calls this again
+        self.setup_file_export()
         self.setup_pop_table(width_policy="fit", height_policy="fit")
         self.setup_sel_table(width_policy="fit", height_policy="fit")
         self._good(f"{self.__class__.__name__}: finished initialization.")
@@ -184,10 +186,10 @@ class SupervisableDataset(Loggable):
         self.update_pusher = Button(
             label="Push", button_type="success", height_policy="fit", width_policy="min"
         )
-        self.data_committer = Dropdown(
+        self.data_committer = Button(
             label="Commit",
             button_type="warning",
-            menu=[*self.__class__.PUBLIC_SUBSETS, *self.__class__.PRIVATE_SUBSETS],
+            # menu=[*self.__class__.PUBLIC_SUBSETS, *self.__class__.PRIVATE_SUBSETS],
             height_policy="fit",
             width_policy="min",
         )
@@ -248,10 +250,11 @@ class SupervisableDataset(Loggable):
         return column(
             self.help_div,
             row(
-                self.update_pusher,
+                # self.update_pusher,
                 self.data_committer,
-                self.dedup_trigger,
+                # self.dedup_trigger,
                 self.selection_viewer,
+                # self.file_exporter,
             ),
             self.pop_table,
             self.sel_table,
@@ -292,43 +295,46 @@ class SupervisableDataset(Loggable):
         """
 
         def callback_commit(event):
-            for sub_k, sub_v in subset_mapping.items():
-                sub_to = event.item
-                selected_idx = explorer.sources[sub_v].selected.indices
-                if not selected_idx:
-                    self._warn(
-                        f"Attempting data commit: did not select any data points in subset {sub_v}."
-                    )
-                    return
-
-                # take selected slice, ignoring ABSTAIN'ed rows
-                # CAUTION: applying selected_idx from explorer.source to self.df
-                #     this assumes that the source and the df have consistent entries.
-                # Consider this:
-                #    keep_cols = self.dfs[sub_k].columns
-                #    sel_slice = explorer.dfs[sub_v].iloc[selected_idx][keep_cols]
-                sel_slice = self.dfs[sub_k].iloc[selected_idx]
-                valid_slice = sel_slice[
-                    sel_slice["label"] != module_config.ABSTAIN_DECODED
-                ]
-
-                # concat to the end and do some accounting
-                size_before = self.dfs[sub_to].shape[0]
-                self.dfs[sub_to] = pd.concat(
-                    [self.dfs[sub_to], valid_slice],
-                    axis=0,
-                    sort=False,
-                    ignore_index=True,
+            # for sub_k, sub_v in subset_mapping.items():
+            # sub_to = event.item
+            sub_to = 'train'
+            sub_k = 'raw'
+            sub_v = 'raw'
+            selected_idx = explorer.sources[sub_v].selected.indices
+            if not selected_idx:
+                self._warn(
+                    f"Attempting data commit: did not select any data points in subset {sub_v}."
                 )
-                size_mid = self.dfs[sub_to].shape[0]
-                self.dfs[sub_to].drop_duplicates(
-                    subset=[self.__class__.FEATURE_KEY], keep="last", inplace=True
-                )
-                size_after = self.dfs[sub_to].shape[0]
+                return
 
-                self._info(
-                    f"Committed {valid_slice.shape[0]} (valid out of {sel_slice.shape[0]} selected) entries from {sub_k} to {sub_to} ({size_before} -> {size_after} with {size_mid-size_after} overwrites)."
-                )
+            # take selected slice, ignoring ABSTAIN'ed rows
+            # CAUTION: applying selected_idx from explorer.source to self.df
+            #     this assumes that the source and the df have consistent entries.
+            # Consider this:
+            #    keep_cols = self.dfs[sub_k].columns
+            #    sel_slice = explorer.dfs[sub_v].iloc[selected_idx][keep_cols]
+            sel_slice = self.dfs[sub_k].iloc[selected_idx]
+            valid_slice = sel_slice[
+                sel_slice["label"] != module_config.ABSTAIN_DECODED
+            ]
+
+            # concat to the end and do some accounting
+            size_before = self.dfs[sub_to].shape[0]
+            self.dfs[sub_to] = pd.concat(
+                [self.dfs[sub_to], valid_slice],
+                axis=0,
+                sort=False,
+                ignore_index=True,
+            )
+            size_mid = self.dfs[sub_to].shape[0]
+            self.dfs[sub_to].drop_duplicates(
+                subset=[self.__class__.FEATURE_KEY], keep="last", inplace=True
+            )
+            size_after = self.dfs[sub_to].shape[0]
+
+            self._info(
+                f"Committed {valid_slice.shape[0]} (valid out of {sel_slice.shape[0]} selected) entries from {sub_k} to {sub_to} ({size_before} -> {size_after} with {size_mid-size_after} overwrites)."
+            )
             # chain another callback
             self._callback_update_population()
 
@@ -416,7 +422,53 @@ class SupervisableDataset(Loggable):
                 self._print({self.dfs[_key].loc[_invalid_indices]})
                 if raise_exception:
                     raise ValueError("invalid labels")
+            
+    def setup_file_export(self):
+        self.file_exporter = Dropdown(
+            label="Export",
+            button_type="warning",
+            menu=["parquet", "CSV"],
+            height_policy="fit",
+            width_policy="min",
+        )
+        
+        def callback_export(event, path_root=None):
+            """
+            A callback on clicking the 'self.annotator_export' button.
+            Saves the dataframe to a pickle.
+            """
+            import pandas as pd
 
+            export_format = event.item
+
+            # auto-determine the export path root
+            if path_root is None:
+                timestamp = current_time("%Y%m%d%H%M%S")
+                path_root = f"hover-dataset-export-{timestamp}"
+
+            export_df = self.to_pandas(use_df=True)
+
+            if export_format == "parquet":
+                export_path = f"{path_root}.parquet"
+                export_df.to_parquet(export_path, index=False)
+            elif export_format == "CSV":
+                export_path = f"{path_root}.csv"
+                export_df.to_csv(export_path, index=False)
+            elif export_format == "JSON":
+                export_path = f"{path_root}.json"
+                export_df.to_json(export_path, orient="records")
+            elif export_format == "pickle":
+                export_path = f"{path_root}.pkl"
+                export_df.to_pickle(export_path)
+            else:
+                raise ValueError(f"Unexpected export format {export_format}")
+
+            self._good(f"Saved DataFrame to {export_path}")
+
+        # assign the callback, keeping its reference
+        self._callback_export = callback_export
+        self.file_exporter.on_click(self._callback_export)
+        
     def setup_pop_table(self, **kwargs):
         """
         ???+ note "Set up a bokeh `DataTable` widget for monitoring subset data populations."
@@ -434,8 +486,8 @@ class SupervisableDataset(Loggable):
         pop_columns = [
             TableColumn(field="label", title="label"),
             *[
-                TableColumn(field=f"count_{_subset}", title=_subset)
-                for _subset in subsets
+                TableColumn(field=f"count_{_subset}", title='count')
+                for _subset in ['raw'] #subsets
             ],
             TableColumn(
                 field="color",
@@ -494,6 +546,7 @@ class SupervisableDataset(Loggable):
             for _col in self.dfs["train"].columns
         ]
         self.sel_table = DataTable(source=sel_source, columns=sel_columns, **kwargs)
+        print(sel_columns)
 
         def update_selection(selected_df):
             """

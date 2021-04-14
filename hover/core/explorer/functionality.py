@@ -99,7 +99,7 @@ class BokehDataAnnotator(BokehBaseExplorer):
         self.annotator_export = Dropdown(
             label="Export",
             button_type="warning",
-            menu=["Excel", "CSV", "JSON", "pickle"],
+            menu=["parquet", "CSV"],
             height_policy="fit",
             width_policy="min",
         )
@@ -144,9 +144,9 @@ class BokehDataAnnotator(BokehBaseExplorer):
 
             export_df = pd.concat(self.dfs, axis=0, sort=False, ignore_index=True)
 
-            if export_format == "Excel":
-                export_path = f"{path_root}.xlsx"
-                export_df.to_excel(export_path, index=False)
+            if export_format == "parquet":
+                export_path = f"{path_root}.parquet"
+                export_df.to_parquet(export_path)
             elif export_format == "CSV":
                 export_path = f"{path_root}.csv"
                 export_df.to_csv(export_path, index=False)

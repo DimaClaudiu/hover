@@ -28,7 +28,7 @@ class BokehForText(BokehBaseExplorer):
         from bokeh.models import TextInput
 
         self.search_pos = TextInput(
-            title="Text contains (plain text, or /pattern/flag for regex):",
+            title="Text contains:", # (plain text, or /pattern/flag for regex):",
             width_policy="fit",
             height_policy="fit",
         )
