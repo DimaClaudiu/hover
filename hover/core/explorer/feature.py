@@ -22,7 +22,7 @@ class BokehForText(BokehBaseExplorer):
     """
 
     MANDATORY_COLUMNS = ["text", "label", "x", "y"]
-    TOOLTIP_KWARGS = {"label": True, "text": True, "coords": True, "index": True}
+    TOOLTIP_KWARGS = {"label": True, "text": True, "coords": False, "index": False, "custom":{'domain':'domain'}}
 
     def _setup_search_highlight(self):
         """
