@@ -1,5 +1,5 @@
 # constants for the abstain mechanism
-ABSTAIN_DECODED = "ABSTAIN"
+ABSTAIN_DECODED = "unlabeled"
 ABSTAIN_ENCODED = -1
 
 # constants for label encoding mechanism

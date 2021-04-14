@@ -6,3 +6,8 @@
 cobertura.xml
 .DS_Store
 annoy.index
+hover.egg-info/dependency_links.txt
+hover.egg-info/PKG-INFO
+hover.egg-info/requires.txt
+hover.egg-info/SOURCES.txt
+hover.egg-info/top_level.txt
