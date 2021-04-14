@@ -12,7 +12,7 @@ from .subroutine import (
 )
 from hover.utils.bokeh_helper import servable
 from wasabi import msg as logger
-import numpy as np
+import pandas as pd
 
 
 @servable(title="Snorkel Crosscheck")
@@ -45,7 +45,6 @@ def snorkel_crosscheck(dataset, lf_list, **kwargs):
     # link coordinates and selections
     snorkel.link_xy_range(annotator)
     snorkel.link_selection("raw", annotator, "raw")
-    snorkel.link_selection("labeled", annotator, "dev")
 
     sidebar = dataset.view()
     layout = row(sidebar, snorkel.view(), annotator.view())
@@ -76,18 +75,11 @@ def active_learning(dataset, vectorizer, vecnet_callback, **kwargs):
     annotator = standard_annotator(dataset, **kwargs)
     finder = standard_finder(dataset, **kwargs)
 
-    # link coordinates, omitting the softlabel
-    finder.link_xy_range(annotator)
-
-    # link selections, noting that softlabel does not take "test"
-    for _key in ["raw", "train", "dev"]:
-        softlabel.link_selection(_key, annotator, _key)
-        softlabel.link_selection(_key, finder, _key)
-    finder.link_selection("test", annotator, "test")
-
-    # patch coordinates for representational similarity analysis
-    softlabel.value_patch("x", "x_traj", title="Manifold trajectory step")
-    softlabel.value_patch("y", "y_traj")
+    # link coordinates and selections
+    softlabel.link_xy_range(annotator)
+    softlabel.link_xy_range(finder)
+    softlabel.link_selection("raw", annotator, "raw")
+    softlabel.link_selection("raw", finder, "raw")
 
     # recipe-specific widget
     def setup_model_retrainer():
@@ -110,40 +102,15 @@ def active_learning(dataset, vectorizer, vecnet_callback, **kwargs):
             model.save()
             logger.good("-- 1/2: retrained model")
 
-            # combine inputs and compute outputs of all non-test subsets
-            use_subsets = ("raw", "train", "dev")
-            inps = []
-            for _key in use_subsets:
-                inps.extend(dataset.dfs[_key]["text"].tolist())
+            for _key in ["raw", "train", "dev"]:
+                _probs = model.predict_proba(dataset.dfs[_key]["text"].tolist())
+                _labels = [
+                    dataset.label_decoder[_val] for _val in _probs.argmax(axis=-1)
+                ]
+                _scores = _probs.max(axis=-1).tolist()
+                dataset.dfs[_key]["pred_label"] = pd.Series(_labels)
+                dataset.dfs[_key]["pred_score"] = pd.Series(_scores)
 
-            probs = model.predict_proba(inps)
-            labels = [dataset.label_decoder[_val] for _val in probs.argmax(axis=-1)]
-            scores = probs.max(axis=-1).tolist()
-            traj_arr, seq_arr, disparity_arr = model.manifold_trajectory(
-                inps,
-                points_per_step=5,
-            )
-
-            offset = 0
-            for _key in use_subsets:
-                _length = dataset.dfs[_key].shape[0]
-                # skip subset if empty
-                if _length > 0:
-                    _slice = slice(offset, offset + _length)
-                    dataset.dfs[_key]["pred_label"] = labels[_slice]
-                    dataset.dfs[_key]["pred_score"] = scores[_slice]
-                    # for each dimension: all steps, selected slice
-                    _x_traj = traj_arr[:, _slice, 0]
-                    _y_traj = traj_arr[:, _slice, 1]
-                    # for each dimension: selected slice, all steps
-                    _x_traj = list(np.swapaxes(_x_traj, 0, 1))
-                    _y_traj = list(np.swapaxes(_y_traj, 0, 1))
-                    dataset.dfs[_key]["x_traj"] = _x_traj
-                    dataset.dfs[_key]["y_traj"] = _y_traj
-
-                    offset += _length
-
-            softlabel._dynamic_callbacks["adjust_patch_slider"]()
             softlabel._update_sources()
             model_retrainer.disabled = False
             logger.good("-- 2/2: updated predictions. Training button is re-enabled.")

@@ -51,8 +51,7 @@ def linked_annotator(dataset, **kwargs):
 
     # link coordinates and selections
     finder.link_xy_range(annotator)
-    for _key in ["raw", "train", "dev", "test"]:
-        finder.link_selection(_key, annotator, _key)
+    finder.link_selection("raw", annotator, "raw")
 
     sidebar = dataset.view()
     layout = row(sidebar, finder.view(), annotator.view())

@@ -12,3 +12,5 @@ hover.egg-info/requires.txt
 hover.egg-info/SOURCES.txt
 hover.egg-info/top_level.txt
 .vscode/settings.json
+/dist
+/build

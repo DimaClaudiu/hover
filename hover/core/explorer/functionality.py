@@ -4,11 +4,10 @@
 import numpy as np
 from bokeh.models import CDSView, IndexFilter
 from bokeh.palettes import Category20
-from bokeh.layouts import row
 from hover import module_config
 from hover.utils.misc import current_time
 from hover.utils.bokeh_helper import bokeh_hover_tooltip
-from .local_config import SOURCE_COLOR_FIELD, SOURCE_ALPHA_FIELD, SEARCH_SCORE_FIELD
+from .local_config import SOURCE_COLOR_FIELD, SOURCE_ALPHA_FIELD
 from .base import BokehBaseExplorer
 
 
@@ -32,55 +31,6 @@ class BokehDataFinder(BokehBaseExplorer):
         }
         for _key in ["raw", "train", "dev", "test"]
     }
-
-    def _setup_widgets(self):
-        """
-        ???+ note "Create score range slider that filters selections."
-        """
-        from bokeh.models import CheckboxGroup
-
-        super()._setup_widgets()
-
-        self.search_filter_box = CheckboxGroup(
-            labels=["use as selection filter"], active=[]
-        )
-
-        def activated():
-            return bool(0 in self.search_filter_box.active)
-
-        def filter_by_search(indices, subset):
-            """
-            Filter selection with search results on a subset.
-            """
-            search_scores = self.sources[subset].data[SEARCH_SCORE_FIELD]
-            matched = set(np.where(np.array(search_scores) > 0)[0])
-            return indices.intersection(matched)
-
-        for _key in self.sources.keys():
-            self._selection_filters[_key].add(
-                lambda indices, subset: filter_by_search(indices, subset)
-                if activated()
-                else indices
-            )
-
-        # when toggled as active, search changes trigger selection filter
-        self.search_pos.on_change(
-            "value",
-            lambda attr, old, new: self._trigger_selection_filters()
-            if activated()
-            else None,
-        )
-        self.search_neg.on_change(
-            "value",
-            lambda attr, old, new: self._trigger_selection_filters()
-            if activated()
-            else None,
-        )
-
-        # active toggles always trigger selection filter
-        self.search_filter_box.on_change(
-            "active", lambda attr, old, new: self._trigger_selection_filters()
-        )
 
     def plot(self, *args, **kwargs):
         """
@@ -146,6 +96,13 @@ class BokehDataAnnotator(BokehBaseExplorer):
             height_policy="fit",
             width_policy="min",
         )
+        self.annotator_export = Dropdown(
+            label="Export",
+            button_type="warning",
+            menu=["Excel", "CSV", "JSON", "pickle"],
+            height_policy="fit",
+            width_policy="min",
+        )
 
         def callback_apply():
             """
@@ -167,14 +124,51 @@ class BokehDataAnnotator(BokehBaseExplorer):
                 f"Applied {len(selected_idx)} annotations: {label} (e.g. {example_old} -> {example_new})"
             )
 
-            for _idx in selected_idx:
-                self.sources["raw"].patch({"label": [(_idx, label)]})
+            self._update_sources()
             self._good(f"Updated annotator plot at {current_time()}")
 
-        # assign the callback and keep the reference
+        def callback_export(event, path_root=None):
+            """
+            A callback on clicking the 'self.annotator_export' button.
+
+            Saves the dataframe to a pickle.
+            """
+            import pandas as pd
+
+            export_format = event.item
+
+            # auto-determine the export path root
+            if path_root is None:
+                timestamp = current_time("%Y%m%d%H%M%S")
+                path_root = f"hover-annotated-df-{timestamp}"
+
+            export_df = pd.concat(self.dfs, axis=0, sort=False, ignore_index=True)
+
+            if export_format == "Excel":
+                export_path = f"{path_root}.xlsx"
+                export_df.to_excel(export_path, index=False)
+            elif export_format == "CSV":
+                export_path = f"{path_root}.csv"
+                export_df.to_csv(export_path, index=False)
+            elif export_format == "JSON":
+                export_path = f"{path_root}.json"
+                export_df.to_json(export_path, orient="records")
+            elif export_format == "pickle":
+                export_path = f"{path_root}.pkl"
+                export_df.to_pickle(export_path)
+            else:
+                raise ValueError(f"Unexpected export format {export_format}")
+
+            self._good(f"Saved DataFrame to {export_path}")
+
+        # keep the references to the callbacks
         self._callback_apply = callback_apply
+        self._callback_export = callback_export
+
+        # assign callbacks
         self.annotator_apply.on_click(self._callback_apply)
         self.annotator_apply.on_click(self._callback_subset_display)
+        self.annotator_export.on_click(self._callback_export)
 
     def plot(self):
         """
@@ -230,19 +224,15 @@ class BokehSoftLabelExplorer(BokehBaseExplorer):
         self.score_col = score_col
         super().__init__(df_dict, **kwargs)
 
-    def _build_tooltip(self, extra):
+    def _build_tooltip(self):
         """
         ???+ note "On top of the parent method, add the soft label fields to the tooltip."
-            | Param            | Type   | Description                  |
-            | :--------------- | :----- | :--------------------------- |
-            | `extra`          | `str`  | user-supplied extra HTML |
         """
-        standard = bokeh_hover_tooltip(
+        return bokeh_hover_tooltip(
             **self.__class__.TOOLTIP_KWARGS,
             custom={"Soft Label": self.label_col, "Soft Score": self.score_col},
         )
-        return f"{standard}\n{extra}"
-        
+
     def _setup_dfs(self, df_dict, **kwargs):
         """
         ???+ note "On top of the parent method, add filler values to additional columns."
@@ -290,66 +280,6 @@ class BokehSoftLabelExplorer(BokehBaseExplorer):
             _alpha = _df[self.score_col].apply(pseudo_percentile).tolist()
             self.sources[_key].add(_color, SOURCE_COLOR_FIELD)
             self.sources[_key].add(_alpha, SOURCE_ALPHA_FIELD)
-
-    def _setup_widgets(self):
-        """
-        ???+ note "Create score range slider that filters selections."
-        """
-        from bokeh.models import RangeSlider, CheckboxGroup
-
-        super()._setup_widgets()
-
-        self.score_range = RangeSlider(
-            start=0.0,
-            end=1.0,
-            value=(0.0, 1.0),
-            step=0.01,
-            title="Score range",
-        )
-        self.score_filter_box = CheckboxGroup(
-            labels=["use as selection filter"], active=[]
-        )
-        self.score_filter = row(self.score_range, self.score_filter_box)
-
-        def activated():
-            return bool(0 in self.score_filter_box.active)
-
-        def subroutine(df, lower, upper):
-            """
-            Calculate indices with score between lower/upper bounds.
-            """
-            keep_l = set(np.where(df[self.score_col] >= lower)[0])
-            keep_u = set(np.where(df[self.score_col] <= upper)[0])
-            kept = keep_l.intersection(keep_u)
-            return kept
-
-        def filter_by_score(indices, subset):
-            """
-            Filter selection with slider range on a subset.
-            """
-            in_range = subroutine(self.dfs[subset], *self.score_range.value)
-            return indices.intersection(in_range)
-
-        # selection change triggers score filter on the changed subset IFF filter box is toggled
-        for _key in self.sources.keys():
-            self._selection_filters[_key].add(
-                lambda indices, subset: filter_by_score(indices, subset)
-                if activated()
-                else indices
-            )
-
-        # when toggled as active, score range change triggers selection filter
-        self.score_range.on_change(
-            "value",
-            lambda attr, old, new: self._trigger_selection_filters()
-            if activated()
-            else None,
-        )
-
-        # active toggles always trigger selection filter
-        self.score_filter_box.on_change(
-            "active", lambda attr, old, new: self._trigger_selection_filters()
-        )
 
     def plot(self, **kwargs):
         """

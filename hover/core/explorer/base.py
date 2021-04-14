@@ -2,12 +2,10 @@
 ???+ note "Base class(es) for ALL explorer implementations."
 """
 from abc import ABC, abstractmethod
-from collections import OrderedDict, defaultdict
 from bokeh.plotting import figure
-from bokeh.models import ColumnDataSource, Slider
+from bokeh.models import ColumnDataSource
 from hover.core import Loggable
 from hover.utils.bokeh_helper import bokeh_hover_tooltip
-from .local_config import SEARCH_SCORE_FIELD
 
 STANDARD_PLOT_TOOLS = [
     # change the scope
@@ -63,20 +61,20 @@ class BokehBaseExplorer(Loggable, ABC):
         """
         self.figure_kwargs = {
             "tools": STANDARD_PLOT_TOOLS,
-            "tooltips": self._build_tooltip(kwargs.pop("tooltips", "")),
+            "tooltips": self._build_tooltip(),
             # bokeh recommends webgl for scalability
             "output_backend": "webgl",
         }
         self.figure_kwargs.update(kwargs)
-        self.figure = figure(**self.figure_kwargs)
         self.glyph_kwargs = {
             _key: _dict["constant"].copy()
             for _key, _dict in self.__class__.SUBSET_GLYPH_KWARGS.items()
         }
+        self._setup_widgets()
         self._setup_dfs(df_dict)
         self._setup_sources()
-        self._setup_widgets()
         self._activate_search_builtin()
+        self.figure = figure(**self.figure_kwargs)
 
     @classmethod
     def from_dataset(cls, dataset, subset_mapping, *args, **kwargs):
@@ -104,18 +102,13 @@ class BokehBaseExplorer(Loggable, ABC):
 
         return column(self._layout_widgets(), self.figure)
 
-    def _build_tooltip(self, extra):
+    def _build_tooltip(self):
         """
         ???+ note "Define a windowed tooltip which shows inspection details."
-            | Param            | Type   | Description                  |
-            | :--------------- | :----- | :--------------------------- |
-            | `extra`          | `str`  | user-supplied extra HTML |
-        
             Note that this is a method rather than a class attribute because
             child classes may involve instance attributes in the tooltip.
         """
-        standard = bokeh_hover_tooltip(**self.__class__.TOOLTIP_KWARGS)
-        return f"{standard}\n{extra}"
+        return bokeh_hover_tooltip(**self.__class__.TOOLTIP_KWARGS)
 
     def _setup_widgets(self):
         """
@@ -124,8 +117,6 @@ class BokehBaseExplorer(Loggable, ABC):
         self._info("Setting up widgets")
         self._setup_search_highlight()
         self._setup_subset_toggle()
-        self._dynamic_widgets = OrderedDict()
-        self._dynamic_callbacks = OrderedDict()
 
     @abstractmethod
     def _layout_widgets(self):
@@ -166,68 +157,6 @@ class BokehBaseExplorer(Loggable, ABC):
             self.data_key_button_group.active
         )
         self.data_key_button_group.on_click(update_data_key_display)
-
-    def value_patch(self, col_original, col_patch, **kwargs):
-        """
-        ???+ note "Allow source values to be dynamically patched through a slider."
-            | Param            | Type   | Description                  |
-            | :--------------- | :----- | :--------------------------- |
-            | `col_original`   | `str`  | column of values before the patch |
-            | `col_patch`      | `str`  | column of list of values to use as patches |
-            | `**kwargs`       |        | forwarded to the slider |
-
-            [Reference](https://github.com/bokeh/bokeh/blob/2.3.0/examples/howto/patch_app.py)
-        """
-        # add a patch slider to widgets, if none exist
-        if "patch_slider" not in self._dynamic_widgets:
-            slider = Slider(start=0, end=1, value=0, step=1, **kwargs)
-            slider.disabled = True
-            self._dynamic_widgets["patch_slider"] = slider
-        else:
-            slider = self._dynamic_widgets["patch_slider"]
-
-        # create a slider-adjusting callback exposed to the outside
-        def adjust_slider():
-            """
-            Infer slider length from the number of patch values.
-            """
-            num_patches = None
-            for _key, _df in self.dfs.items():
-                assert (
-                    col_patch in _df.columns
-                ), f"Subset {_key} expecting column {col_patch} among columns, got {_df.columns}"
-                # find all array lengths; note that the data subset can be empty
-                _num_patches_seen = _df[col_patch].apply(len).values
-                assert (
-                    len(set(_num_patches_seen)) <= 1
-                ), f"Expecting consistent number of patches, got {_num_patches_seen}"
-                _num_patches = _num_patches_seen[0] if _df.shape[0] > 0 else None
-
-                # if a previous subset has implied the number of patches, run a consistency check
-                if num_patches is None:
-                    num_patches = _num_patches
-                else:
-                    assert (
-                        num_patches == _num_patches
-                    ), f"Conflicting number of patches: {num_patches} vs {_num_patches}"
-
-            assert num_patches >= 2, f"Expecting at least 2 patches, got {num_patches}"
-            slider.end = num_patches - 1
-            slider.disabled = False
-
-        self._dynamic_callbacks["adjust_patch_slider"] = adjust_slider
-
-        # create the callback for patching values
-        def update_patch(attr, old, new):
-            for _key, _df in self.dfs.items():
-                # calculate the patch corresponding to slider value
-                _value = [_arr[new] for _arr in _df[col_patch].values]
-                _slice = slice(_df.shape[0])
-                _patch = {col_original: [(_slice, _value)]}
-                self.sources[_key].patch(_patch)
-
-        slider.on_change("value", update_patch)
-        self._good(f"Patching {col_original} using {col_patch}")
 
     def _setup_dfs(self, df_dict, copy=False):
         """
@@ -275,80 +204,20 @@ class BokehBaseExplorer(Loggable, ABC):
         ???+ note "Create, **(not update)**, `ColumnDataSource` objects."
             Intended to be extended in child classes for pre/post processing.
         """
-        from bokeh.events import SelectionGeometry
-
         self._info("Setting up sources")
         self.sources = {_key: ColumnDataSource(_df) for _key, _df in self.dfs.items()}
         self._postprocess_sources()
 
-        # initialize attributes that couple with sources
-        # extra columns for dynamic plotting
-        self._extra_source_cols = defaultdict(dict)
-        # store the last manual selections
-        self._last_selections = {_key: set() for _key in self.sources.keys()}
-        # store commutative, idempotent index filters
-        self._selection_filters = {_key: set() for _key in self.sources.keys()}
-
-        def store_selection(event):
-            """
-            Keep track of the last manual selection.
-            """
-            # do nothing until action is complete
-            if not event.final:
-                return
-
-            # store selection indices
-            for _key, _source in self.sources.items():
-                _selected = _source.selected.indices
-                self._last_selections[_key].clear()
-                self._last_selections[_key].update(_selected)
-
-        def trigger_selection_filters(subsets=None):
-            """
-            Filter selection indices on specified subsets.
-            """
-            if subsets is None:
-                subsets = self.sources.keys()
-            else:
-                assert set(subsets).issubset(
-                    self.sources.keys()
-                ), f"Expected subsets from {self.sources.keys()}"
-
-            for _key in subsets:
-                _selected = self._last_selections[_key]
-                for _func in self._selection_filters[_key]:
-                    _selected = _func(_selected, _key)
-                self.sources[_key].selected.indices = list(_selected)
-
-        self._trigger_selection_filters = trigger_selection_filters
-        self.figure.on_event(SelectionGeometry, store_selection)
-        self.figure.on_event(
-            SelectionGeometry,
-            lambda event: self._trigger_selection_filters() if event.final else None,
-        )
-
     def _update_sources(self):
         """
         ???+ note "Update the sources with the corresponding dfs."
-            Note that the shapes and fields of sources are overriden.
-            Thus supplementary fields (those that do not exist in the dfs), 
-            such as dynamic plotting kwargs, need to be re-assigned.
+            Note that it seems mandatory to re-activate the search widgets.
+            This is because assigning to `source.data` loses plotting kwargs.
         """
         for _key in self.dfs.keys():
             self.sources[_key].data = self.dfs[_key]
         self._postprocess_sources()
-# self._activate_search_builtin(verbose=False)
-
-        # reset attribute values that couple with sources
-        for _key in self.sources.keys():
-            _num_points = len(self.sources[_key].data["label"])
-            # add extra columns
-            for _col, _fill_value in self._extra_source_cols[_key].items():
-                self.sources[_key].add([_fill_value] * _num_points, _col)
-
-            # clear last selection but keep the set object
-            self._last_selections[_key].clear()
-            # DON'T DO: self._last_selections = {_key: set() for _key in self.sources.keys()}
+        self._activate_search_builtin(verbose=False)
 
     def _postprocess_sources(self):
         """
@@ -369,18 +238,10 @@ class BokehBaseExplorer(Loggable, ABC):
         """
         for _key, _dict in self.__class__.SUBSET_GLYPH_KWARGS.items():
             if _key in self.sources.keys():
-                # determine responding attributes
                 _responding = list(_dict["search"].keys())
-
-                # create a field that holds search results that could be used elsewhere
-                _num_points = len(self.sources[_key].data["label"])
-                self._extra_source_cols[_key][SEARCH_SCORE_FIELD] = 0
-                self.sources[_key].add([0] * _num_points, SEARCH_SCORE_FIELD)
-
-                # make attributes respond to search
                 for _flag, _params in _dict["search"].items():
                     self.glyph_kwargs[_key] = self.activate_search(
-                        _key,
+                        self.sources[_key],
                         self.glyph_kwargs[_key],
                         altered_param=_params,
                     )
@@ -426,9 +287,6 @@ class BokehBaseExplorer(Loggable, ABC):
         sl, sr = self.sources[key], other.sources[other_key]
         sl.selected.js_link("indices", sr.selected, "indices")
         sr.selected.js_link("indices", sl.selected, "indices")
-        # link last manual selections (pointing to the same set)
-        other._last_selections[other_key] = self._last_selections[key]
-        self._last_selections[key] = other._last_selections[other_key]
 
     def link_xy_range(self, other):
         """
