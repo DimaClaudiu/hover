@@ -543,7 +543,7 @@ class SupervisableDataset(Loggable):
                 field=_col,
                 title=_col,
             )
-            for _col in self.dfs["train"].columns
+            for _col in ["domain", "text"] #self.dfs["raw"].columns
         ]
         self.sel_table = DataTable(source=sel_source, columns=sel_columns, **kwargs)
         print(sel_columns)

@@ -26,7 +26,7 @@ class BokehDataFinder(BokehBaseExplorer):
             "search": {
                 "size": ("size", 10, 5, 7),
                 "fill_alpha": ("fill_alpha", 0.4, 0.1, 0.2),
-                "color": ("color", "navy", "navy", "navy"),
+                "color": ("color", "#ff0000", "#ff0000", "#ff0000"),
             },
         }
         for _key in ["raw", "train", "dev", "test"]

@@ -60,7 +60,7 @@ class BokehForText(BokehBaseExplorer):
         assert isinstance(kwargs, dict)
         updated_kwargs = kwargs.copy()
 
-        param_key, param_pos, param_neg, param_default = altered_param
+        param_key, param_pos, param_neg, param_default = ("size", 20, 2, 7)#altered_param
         num_points = len(source.data["text"])
         default_param_list = [param_default] * num_points
         source.add(default_param_list, f"{param_key}")
@@ -112,11 +112,23 @@ class BokehForText(BokehBaseExplorer):
             }
 
             function toRegex(search_key) {
+                var case_sen = true;
+                if (search_key.startsWith("_")) {
+                    case_sen = false;
+                    search_key = search_key.substring(1);
+                }
                 var match = search_key.match(new RegExp('^/(.*?)/([gimy]*)$'));
                 if (match) {
-                    return new RegExp(match[1], match[2]);
+                    if (case_sen)
+                        return new RegExp(match[1], match[2]);
+                    else
+                        return new RegExp(match[1], match[2], "i");
+
                 } else {
-                    return search_key;
+                    if (case_sen)
+                        return search_key;
+                    else
+                        return new RegExp(search_key, "i");
                 }
             }
 

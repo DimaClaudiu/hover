@@ -217,7 +217,7 @@ class BokehBaseExplorer(Loggable, ABC):
         for _key in self.dfs.keys():
             self.sources[_key].data = self.dfs[_key]
         self._postprocess_sources()
-        self._activate_search_builtin(verbose=False)
+        self._activate_search_builtin(verbose=True)
 
     def _postprocess_sources(self):
         """
