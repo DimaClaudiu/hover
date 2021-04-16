@@ -687,45 +687,6 @@ class SupervisableDataset(Loggable):
 
         return reducer
 
-    def loader(self, key, vectorizer, batch_size=64, smoothing_coeff=0.0):
-        """
-        ???+ note "Prepare a torch `Dataloader` for training or evaluation."
-            | Param        | Type       | Description                        |
-            | :----------- | :--------- | :--------------------------------- |
-            | `key`        | `str`      | subset of data, e.g. `"train"`     |
-            | `vectorizer` | `callable` | the feature -> vector function     |
-            | `batch_size` | `int`      | size per batch                     |
-            | `smoothing_coeff` | `float` | portion of probability to equally split between classes |
-        """
-        # lazy import: missing torch should not break the rest of the class
-        from hover.utils.torch_helper import vector_dataloader, one_hot, label_smoothing
-
-        # take the slice that has a meaningful label
-        df = self.dfs[key][self.dfs[key]["label"] != module_config.ABSTAIN_DECODED]
-
-        # edge case: valid slice is too small
-        if df.shape[0] < 1:
-            raise ValueError(f"Subset {key} has too few samples ({df.shape[0]})")
-        batch_size = min(batch_size, df.shape[0])
-
-        labels = df["label"].apply(lambda x: self.label_encoder[x]).tolist()
-        features = df[self.__class__.FEATURE_KEY].tolist()
-        output_vectors = one_hot(labels, num_classes=len(self.classes))
-
-        self._info(f"Preparing {key} input vectors...")
-        input_vectors = [vectorizer(_f) for _f in tqdm(features)]
-        if smoothing_coeff > 0.0:
-            output_vectors = label_smoothing(
-                output_vectors, coefficient=smoothing_coeff
-            )
-        self._info(f"Preparing {key} data loader...")
-        loader = vector_dataloader(input_vectors, output_vectors, batch_size=batch_size)
-        self._good(
-            f"Prepared {key} loader consisting of {len(features)} examples with batch size {batch_size}"
-        )
-        return loader
-
-
 class SupervisableTextDataset(SupervisableDataset):
     """
     ???+ note "Can add text-specific methods."

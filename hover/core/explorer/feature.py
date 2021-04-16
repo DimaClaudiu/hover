@@ -78,6 +78,7 @@ class BokehForText(BokehBaseExplorer):
             },
             code=f"""
             const data = source.data;
+            console.log(source.data);
             const text = data['text'];
             var arr = data['{param_key}'];
             """
@@ -145,95 +146,3 @@ class BokehForText(BokehBaseExplorer):
         self.search_pos.js_on_change("value", search_callback)
         self.search_neg.js_on_change("value", search_callback)
         return updated_kwargs
-
-
-class BokehForAudio(BokehBaseExplorer):
-    """
-    ???+ note "`BokehBaseExplorer` with `audio` (path like `"http://"` or `"file:///"`) as the main feature."
-        Assumes on top of its parent class:
-
-        - in supplied dataframes
-          - (always) audio urls in an `audio` column
-
-        Does not assume:
-
-        - what the explorer serves to do.
-    """
-
-    MANDATORY_COLUMNS = ["audio", "label", "x", "y"]
-    TOOLTIP_KWARGS = {"label": True, "audio": True, "coords": True, "index": True}
-
-    def _setup_search_highlight(self):
-        """
-        ???+ help "Help wanted"
-            Trivial implementation until we figure out how to search audios.
-        """
-        self._warn("no search highlight available.")
-
-    def _layout_widgets(self):
-        """
-        ???+ note "Define the layout of widgets."
-        """
-        return self.data_key_button_group
-
-    def activate_search(self, source, kwargs, altered_param=("size", 10, 5, 7)):
-        """
-        ???+ help "Help wanted"
-            Trivial implementation until we figure out how to search audios.
-
-            [Create an issue](https://github.com/phurwicz/hover/issues/new) if you have an idea :)
-
-            | Param           | Type    | Description                   |
-            | :-------------- | :------ | :---------------------------  |
-            | `source`        | `bool`  | the `ColumnDataSource` to use |
-            | `kwargs`        | `bool`  | kwargs for the plot to add to |
-            | `altered_param` | `tuple` | (attribute, positive, negative, default) |
-        """
-        self._warn("no search highlight available.")
-        return kwargs
-
-
-class BokehForImage(BokehBaseExplorer):
-    """
-    ???+ note "`BokehBaseExplorer` with `image` (path like `"http://"` or `"file:///"`) as the main feature."
-        Assumes on top of its parent class:
-
-        - in supplied dataframes
-          - (always) image urls in an `image` column
-
-        Does not assume:
-
-        - what the explorer serves to do.
-    """
-
-    MANDATORY_COLUMNS = ["image", "label", "x", "y"]
-    TOOLTIP_KWARGS = {"label": True, "image": True, "coords": True, "index": True}
-
-    def _setup_search_highlight(self):
-        """
-        ???+ help "Help wanted"
-            Trivial implementation until we figure out how to search images.
-        """
-        self._warn("no search highlight available.")
-
-    def _layout_widgets(self):
-        """
-        ???+ note "Define the layout of widgets."
-        """
-        return self.data_key_button_group
-
-    def activate_search(self, source, kwargs, altered_param=("size", 10, 5, 7)):
-        """
-        ???+ help "Help wanted"
-            Trivial implementation until we figure out how to search images.
-
-            [Create an issue](https://github.com/phurwicz/hover/issues/new) if you have an idea :)
-
-            | Param           | Type    | Description                   |
-            | :-------------- | :------ | :---------------------------  |
-            | `source`        | `bool`  | the `ColumnDataSource` to use |
-            | `kwargs`        | `bool`  | kwargs for the plot to add to |
-            | `altered_param` | `tuple` | (attribute, positive, negative, default) |
-        """
-        self._warn("no search highlight available.")
-        return kwargs
