@@ -186,13 +186,6 @@ class SupervisableDataset(Loggable):
         self.update_pusher = Button(
             label="Push", button_type="success", height_policy="fit", width_policy="min"
         )
-        self.data_committer = Button(
-            label="Commit",
-            button_type="warning",
-            # menu=[*self.__class__.PUBLIC_SUBSETS, *self.__class__.PRIVATE_SUBSETS],
-            height_policy="fit",
-            width_policy="min",
-        )
         self.dedup_trigger = Button(
             label="Dedup",
             button_type="warning",
@@ -206,37 +199,6 @@ class SupervisableDataset(Loggable):
             width_policy="min",
         )
 
-        def commit_base_callback():
-            """
-            COMMIT creates cross-duplicates between subsets.
-
-            - PUSH shall be blocked until DEDUP is executed.
-            """
-            self.dedup_trigger.disabled = False
-            self.update_pusher.disabled = True
-
-        def dedup_base_callback():
-            """
-            DEDUP re-creates dfs with different indices than before.
-
-            - COMMIT shall be blocked until PUSH is executed.
-            """
-            self.update_pusher.disabled = False
-            self.data_committer.disabled = True
-            self.df_deduplicate()
-
-        def push_base_callback():
-            """
-            PUSH enforces df consistency with all linked explorers.
-
-            - DEDUP could be blocked because it stays trivial until COMMIT is executed.
-            """
-            self.data_committer.disabled = False
-            self.dedup_trigger.disabled = True
-
-        self.update_pusher.on_click(push_base_callback)
-        self.data_committer.on_click(commit_base_callback)
-        self.dedup_trigger.on_click(dedup_base_callback)
 
         self.help_div = dataset_help_widget()
 
@@ -250,11 +212,7 @@ class SupervisableDataset(Loggable):
         return column(
             self.help_div,
             row(
-                # self.update_pusher,
-                self.data_committer,
-                # self.dedup_trigger,
                 self.selection_viewer,
-                # self.file_exporter,
             ),
             self.pop_table,
             self.sel_table,
@@ -283,64 +241,6 @@ class SupervisableDataset(Loggable):
         self.update_pusher.on_click(callback_push)
         self._good(
             f"Subscribed {explorer.__class__.__name__} to dataset pushes: {subset_mapping}"
-        )
-
-    def subscribe_data_commit(self, explorer, subset_mapping):
-        """
-        ???+ note "Enable committing data across subsets, specified by a selection in an explorer and a dropdown widget of the dataset."
-            | Param            | Type   | Description                            |
-            | :--------------- | :----- | :------------------------------------- |
-            | `explorer`       | `BokehBaseExplorer` | the explorer to register  |
-            | `subset_mapping` | `dict` | `dataset` -> `explorer` subset mapping |
-        """
-
-        def callback_commit(event):
-            # for sub_k, sub_v in subset_mapping.items():
-            # sub_to = event.item
-            sub_to = 'train'
-            sub_k = 'raw'
-            sub_v = 'raw'
-            selected_idx = explorer.sources[sub_v].selected.indices
-            if not selected_idx:
-                self._warn(
-                    f"Attempting data commit: did not select any data points in subset {sub_v}."
-                )
-                return
-
-            # take selected slice, ignoring ABSTAIN'ed rows
-            # CAUTION: applying selected_idx from explorer.source to self.df
-            #     this assumes that the source and the df have consistent entries.
-            # Consider this:
-            #    keep_cols = self.dfs[sub_k].columns
-            #    sel_slice = explorer.dfs[sub_v].iloc[selected_idx][keep_cols]
-            sel_slice = self.dfs[sub_k].iloc[selected_idx]
-            valid_slice = sel_slice[
-                sel_slice["label"] != module_config.ABSTAIN_DECODED
-            ]
-
-            # concat to the end and do some accounting
-            size_before = self.dfs[sub_to].shape[0]
-            self.dfs[sub_to] = pd.concat(
-                [self.dfs[sub_to], valid_slice],
-                axis=0,
-                sort=False,
-                ignore_index=True,
-            )
-            size_mid = self.dfs[sub_to].shape[0]
-            self.dfs[sub_to].drop_duplicates(
-                subset=[self.__class__.FEATURE_KEY], keep="last", inplace=True
-            )
-            size_after = self.dfs[sub_to].shape[0]
-
-            self._info(
-                f"Committed {valid_slice.shape[0]} (valid out of {sel_slice.shape[0]} selected) entries from {sub_k} to {sub_to} ({size_before} -> {size_after} with {size_mid-size_after} overwrites)."
-            )
-            # chain another callback
-            self._callback_update_population()
-
-        self.data_committer.on_click(callback_commit)
-        self._good(
-            f"Subscribed {explorer.__class__.__name__} to dataset commits: {subset_mapping}"
         )
 
     def subscribe_selection_view(self, explorer, subsets):
