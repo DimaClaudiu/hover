@@ -232,10 +232,9 @@ class SupervisableDataset(Loggable):
 
         def callback_view():
             sel_slices = []
-            for subset in subsets:
-                selected_idx = explorer.sources[subset].selected.indices
-                sub_slice = explorer.dfs[subset].iloc[selected_idx]
-                sel_slices.append(sub_slice)
+            selected_idx = explorer.sources['raw'].selected.indices
+            sub_slice = explorer.dfs['raw'].iloc[selected_idx]
+            sel_slices.append(sub_slice)
 
             selected = pd.concat(sel_slices, axis=0)
 

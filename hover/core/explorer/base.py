@@ -236,6 +236,7 @@ class BokehBaseExplorer(Loggable, ABC):
             | :---------- | :----- | :--------------------------- |
             | `verbose`   | `bool` | whether to log verbosely     |
         """
+        
         for _key, _dict in self.__class__.SUBSET_GLYPH_KWARGS.items():
             if _key in self.sources.keys():
                 _responding = list(_dict["search"].keys())

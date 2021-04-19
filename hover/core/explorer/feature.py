@@ -78,7 +78,6 @@ class BokehForText(BokehBaseExplorer):
             },
             code=f"""
             const data = source.data;
-            console.log(source.data);
             const text = data['text'];
             var arr = data['{param_key}'];
             """
@@ -135,16 +134,14 @@ class BokehForText(BokehBaseExplorer):
 
             if (valid_pos) {search_pos = toRegex(search_pos);}
             if (valid_neg) {search_neg = toRegex(search_neg);}
-            var found=0;
+            var found=[];
             for (var i = 0; i < arr.length; i++) {
                 arr[i] = determineAttr(text[i]);
                 if(arr[i] == param_pos){
-                    found++;
-                    source.selected.indices.push(i);
+                    found.push(i);
                 }
             }
-            console.log(found);
-            console.log(source);
+            source.selected.indices = [...new Set(found)]; 
 
             source.change.emit()
             """,
