@@ -435,6 +435,7 @@ class SupervisableDataset(Loggable):
         """
         ???+ note "Cross-deduplicate data entries by feature between subsets."
         """
+        return
         self._info("Deduplicating...")
         # for data entry accounting
         before, after = dict(), dict()
