@@ -103,7 +103,7 @@ class SupervisableDataset(Loggable):
         # self.setup_label_coding() # redundant if setup_pop_table() immediately calls this again
         self.setup_file_export()
         self.setup_pop_table(width_policy="fit", height_policy="fit")
-        self.setup_sel_table(width_policy="fit", height_policy="fit")
+        self.setup_sel_table(width_policy="fit", width=500, height_policy="max", autosize_mode=None, auto_edit=True, editable=True)
         self._good(f"{self.__class__.__name__}: finished initialization.")
 
     def copy(self, use_df=True):
@@ -189,7 +189,7 @@ class SupervisableDataset(Loggable):
             row(
                 self.selection_viewer,
             ),
-            self.pop_table,
+            # self.pop_table,
             self.sel_table,
         )
 
@@ -405,10 +405,15 @@ class SupervisableDataset(Loggable):
         sel_source = ColumnDataSource(dict())
         sel_columns = [
             TableColumn(
-                field=_col,
-                title=_col,
+                field="domain",
+                title="domain",
+                width=125
+            ),
+               TableColumn(
+                field="text",
+                title="text",
+                width=1000
             )
-            for _col in ["domain", "text"] #self.dfs["raw"].columns
         ]
         self.sel_table = DataTable(source=sel_source, columns=sel_columns, **kwargs)
         print(sel_columns)

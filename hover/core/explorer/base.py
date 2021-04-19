@@ -66,6 +66,7 @@ class BokehBaseExplorer(Loggable, ABC):
             "output_backend": "webgl",
         }
         self.figure_kwargs.update(kwargs)
+        
         self.glyph_kwargs = {
             _key: _dict["constant"].copy()
             for _key, _dict in self.__class__.SUBSET_GLYPH_KWARGS.items()
@@ -75,6 +76,7 @@ class BokehBaseExplorer(Loggable, ABC):
         self._setup_sources()
         self._activate_search_builtin()
         self.figure = figure(**self.figure_kwargs)
+        self.figure.sizing_mode = 'scale_width'
 
     @classmethod
     def from_dataset(cls, dataset, subset_mapping, *args, **kwargs):
