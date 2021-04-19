@@ -60,7 +60,7 @@ class BokehForText(BokehBaseExplorer):
         assert isinstance(kwargs, dict)
         updated_kwargs = kwargs.copy()
 
-        param_key, param_pos, param_neg, param_default = ("size", 20, 2, 7)#altered_param
+        param_key, param_pos, param_neg, param_default = altered_param#("alpha", 1, 0.1, 0.7)
         num_points = len(source.data["text"])
         default_param_list = [param_default] * num_points
         source.add(default_param_list, f"{param_key}")
@@ -135,9 +135,16 @@ class BokehForText(BokehBaseExplorer):
 
             if (valid_pos) {search_pos = toRegex(search_pos);}
             if (valid_neg) {search_neg = toRegex(search_neg);}
+            var found=0;
             for (var i = 0; i < arr.length; i++) {
                 arr[i] = determineAttr(text[i]);
+                if(arr[i] == param_pos){
+                    found++;
+                    source.selected.indices.push(i);
+                }
             }
+            console.log(found);
+            console.log(source);
 
             source.change.emit()
             """,

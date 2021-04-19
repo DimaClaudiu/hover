@@ -21,10 +21,10 @@ class BokehDataAnnotator(BokehBaseExplorer):
 
     SUBSET_GLYPH_KWARGS = {
         _key: {
-            "constant": {"line_alpha": 0.3},
+            "constant": {"line_alpha": 0.3, "size":7},
             "search": {
                 "size": ("size", 10, 5, 7),
-                "fill_alpha": ("fill_alpha", 0.5, 0.1, 0.4),
+                "alpha": ("alpha", 1, 0, 0.5)
             },
         }
         for _key in ["raw", "train", "dev", "test"]
