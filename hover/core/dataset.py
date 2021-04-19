@@ -3,7 +3,6 @@
 
     When we supervise a collection of data, these operations need to be simple:
 
-    -   managing `raw`/`train`/`dev`/`test` subsets
     -   transferring data points between subsets
     -   pulling updates from annotation interfaces
     -   pushing updates to annotation interfaces
@@ -45,22 +44,12 @@ class SupervisableDataset(Loggable):
 
     # 'scratch': intended to be directly editable by other objects, i.e. Explorers
     # labels will be stored but not used for information in hover itself
-    SCRATCH_SUBSETS = tuple(["raw"])
-
-    # non-'scratch': intended to be read-only outside of the class
-    # 'public': labels will be considered as part of the classification task and will be used for built-in supervision
-    PUBLIC_SUBSETS = tuple(["train", "dev"])
-    # 'private': labels will be considered as part of the classification task and will NOT be used for supervision
-    PRIVATE_SUBSETS = tuple(["test"])
 
     FEATURE_KEY = "feature"
 
     def __init__(
         self,
         raw_dictl,
-        train_dictl=None,
-        dev_dictl=None,
-        test_dictl=None,
         feature_key="feature",
         label_key="label",
     ):
@@ -69,9 +58,6 @@ class SupervisableDataset(Loggable):
             | Param         | Type   | Description                          |
             | :------------ | :----- | :----------------------------------- |
             | `raw_dictl`   | `list` | list of dicts holding the **to-be-supervised** raw data |
-            | `train_dictl` | `list` | list of dicts holding any **supervised** train data |
-            | `dev_dictl`   | `list` | list of dicts holding any **supervised** dev data   |
-            | `test_dictl`  | `list` | list of dicts holding any **supervised** test data  |
             | `feature_key` | `str`  | the key for the feature in each piece of data |
             | `label_key`   | `str`  | the key for the `**str**` label in supervised data |
         """
@@ -108,9 +94,6 @@ class SupervisableDataset(Loggable):
 
         self.dictls = {
             "raw": dictl_transform(raw_dictl, labels=False),
-            "train": dictl_transform(train_dictl),
-            "dev": dictl_transform(dev_dictl),
-            "test": dictl_transform(test_dictl),
         }
 
         self.synchronize_dictl_to_df()
@@ -134,9 +117,6 @@ class SupervisableDataset(Loggable):
             self.synchronize_df_to_dictl()
         return self.__class__(
             raw_dictl=self.dictls["raw"],
-            train_dictl=self.dictls["train"],
-            dev_dictl=self.dictls["dev"],
-            test_dictl=self.dictls["test"],
             feature_key=self.__class__.FEATURE_KEY,
             label_key="label",
         )
@@ -151,10 +131,9 @@ class SupervisableDataset(Loggable):
         if not use_df:
             self.synchronize_dictl_to_df()
         dfs = []
-        for _subset in ["raw", "train", "dev", "test"]:
-            _df = self.dfs[_subset].copy()
-            _df[DATASET_SUBSET_FIELD] = _subset
-            dfs.append(_df)
+        _df = self.dfs['raw'].copy()
+        _df[DATASET_SUBSET_FIELD] = 'raw'
+        dfs.append(_df)
 
         return pd.concat(dfs, axis=0)
 
@@ -167,15 +146,11 @@ class SupervisableDataset(Loggable):
             | `df` | `DataFrame` | with a "SUBSET" field dividing subsets |
         """
         dictls = {}
-        for _subset in ["raw", "train", "dev", "test"]:
-            dictls[_subset] = df[df[DATASET_SUBSET_FIELD] == _subset].to_dict(
-                orient="records"
-            )
+        dictls['raw'] = df[df[DATASET_SUBSET_FIELD] == 'raw'].to_dict(
+            orient="records"
+        )
         return cls(
-            raw_dictl=dictls["raw"],
-            train_dictl=dictls["train"],
-            dev_dictl=dictls["dev"],
-            test_dictl=dictls["test"],
+            raw_dictl=dictls['raw'],
             **kwargs,
         )
 
@@ -283,10 +258,9 @@ class SupervisableDataset(Loggable):
             | `debug`   | `bool` | whether to enable label validation |
         """
         all_labels = set()
-        for _key in [*self.__class__.PUBLIC_SUBSETS, *self.__class__.PRIVATE_SUBSETS]:
-            _df = self.dfs[_key]
-            _found_labels = set(_df["label"].tolist())
-            all_labels = all_labels.union(_found_labels)
+        _df = self.dfs['raw']
+        _found_labels = set(_df["label"].tolist())
+        all_labels = all_labels.union(_found_labels)
 
         # exclude ABSTAIN from self.classes, but include it in the encoding
         all_labels.discard(module_config.ABSTAIN_DECODED)
@@ -312,16 +286,15 @@ class SupervisableDataset(Loggable):
             | :---------------- | :----- | :---------------------------------- |
             | `raise_exception` | `bool` | whether to raise errors when failed |
         """
-        for _key in [*self.__class__.PUBLIC_SUBSETS, *self.__class__.PRIVATE_SUBSETS]:
-            _invalid_indices = None
-            assert "label" in self.dfs[_key].columns
-            _mask = self.dfs[_key]["label"].apply(lambda x: x in self.label_encoder)
-            _invalid_indices = np.where(_mask is False)[0].tolist()
-            if _invalid_indices:
-                self._fail(f"Subset {_key} has invalid labels:")
-                self._print({self.dfs[_key].loc[_invalid_indices]})
-                if raise_exception:
-                    raise ValueError("invalid labels")
+        _invalid_indices = None
+        assert "label" in self.dfs['raw'].columns
+        _mask = self.dfs['raw']["label"].apply(lambda x: x in self.label_encoder)
+        _invalid_indices = np.where(_mask is False)[0].tolist()
+        if _invalid_indices:
+            self._fail(f"Subset {'raw'} has invalid labels:")
+            self._print({self.dfs['raw'].loc[_invalid_indices]})
+            if raise_exception:
+                raise ValueError("invalid labels")
             
     def setup_file_export(self):
         self.file_exporter = Dropdown(
@@ -377,17 +350,11 @@ class SupervisableDataset(Loggable):
             | :--------- | :----- | :--------------------------- |
             | `**kwargs` |        | forwarded to the `DataTable` |
         """
-        subsets = [
-            *self.__class__.SCRATCH_SUBSETS,
-            *self.__class__.PUBLIC_SUBSETS,
-            *self.__class__.PRIVATE_SUBSETS,
-        ]
         pop_source = ColumnDataSource(dict())
         pop_columns = [
             TableColumn(field="label", title="label"),
             *[
-                TableColumn(field=f"count_{_subset}", title='count')
-                for _subset in ['raw'] #subsets
+                TableColumn(field=f"count_{'raw'}", title='count')
             ],
             TableColumn(
                 field="color",
@@ -410,11 +377,10 @@ class SupervisableDataset(Loggable):
             eff_colors = [color_dict[_label] for _label in eff_labels]
 
             pop_data = dict(color=eff_colors, label=eff_labels)
-            for _subset in subsets:
-                _subpop = self.dfs[_subset]["label"].value_counts()
-                pop_data[f"count_{_subset}"] = [
-                    _subpop.get(_label, 0) for _label in eff_labels
-                ]
+            _subpop = self.dfs['raw']["label"].value_counts()
+            pop_data[f"count_{'raw'}"] = [
+                _subpop.get(_label, 0) for _label in eff_labels
+            ]
 
             # push results to bokeh data source
             pop_source.data = pop_data
@@ -470,22 +436,16 @@ class SupervisableDataset(Loggable):
         before, after = dict(), dict()
 
         # deduplicating rule: entries that come LATER are of higher priority
-        ordered_subsets = [
-            *self.__class__.SCRATCH_SUBSETS,
-            *self.__class__.PUBLIC_SUBSETS,
-            *self.__class__.PRIVATE_SUBSETS,
-        ]
 
         # keep track of which df has which columns and which rows came from which subset
         columns = dict()
-        for _key in ordered_subsets:
-            before[_key] = self.dfs[_key].shape[0]
-            columns[_key] = self.dfs[_key].columns
-            self.dfs[_key]["__subset"] = _key
+        before['raw'] = self.dfs['raw'].shape[0]
+        columns['raw'] = self.dfs['raw'].columns
+        self.dfs['raw']["__subset"] = 'raw'
 
         # concatenate in order and deduplicate
         overall_df = pd.concat(
-            [self.dfs[_key] for _key in ordered_subsets], axis=0, sort=False
+            [self.dfs['raw']], axis=0, sort=False
         )
         overall_df.drop_duplicates(
             subset=[self.__class__.FEATURE_KEY], keep="last", inplace=True
@@ -493,99 +453,34 @@ class SupervisableDataset(Loggable):
         overall_df.reset_index(drop=True, inplace=True)
 
         # cut up slices
-        for _key in ordered_subsets:
-            self.dfs[_key] = overall_df[overall_df["__subset"] == _key].reset_index(
-                drop=True, inplace=False
-            )[columns[_key]]
-            after[_key] = self.dfs[_key].shape[0]
-            self._info(f"--subset {_key} rows: {before[_key]} -> {after[_key]}.")
+        self.dfs['raw'] = overall_df[overall_df["__subset"] == 'raw'].reset_index(
+            drop=True, inplace=False
+        )[columns['raw']]
+        after['raw'] = self.dfs['raw'].shape[0]
+        self._info(f"--subset {'raw'} rows: {before['raw']} -> {after['raw']}.")
 
     def synchronize_dictl_to_df(self):
         """
         ???+ note "Re-make dataframes from lists of dictionaries."
         """
         self.dfs = dict()
-        for _key, _dictl in self.dictls.items():
-            if _dictl:
-                _df = pd.DataFrame(_dictl)
-                assert self.__class__.FEATURE_KEY in _df.columns
-                assert "label" in _df.columns
-            else:
-                _df = pd.DataFrame(columns=[self.__class__.FEATURE_KEY, "label"])
+        _dictl = self.dictls['raw']
+        if _dictl:
+            _df = pd.DataFrame(_dictl)
+            assert self.__class__.FEATURE_KEY in _df.columns
+            assert "label" in _df.columns
+        else:
+            _df = pd.DataFrame(columns=[self.__class__.FEATURE_KEY, "label"])
 
-            self.dfs[_key] = _df
+        self.dfs['raw'] = _df
 
     def synchronize_df_to_dictl(self):
         """
         ???+ note "Re-make lists of dictionaries from dataframes."
         """
         self.dictls = dict()
-        for _key, _df in self.dfs.items():
-            self.dictls[_key] = _df.to_dict(orient="records")
+        self.dictls['raw'] = self.dfs['raw'].to_dict(orient="records")
 
-    def compute_2d_embedding(self, vectorizer, method, **kwargs):
-        """
-        ???+ note "Get embeddings in the xy-plane and return the dimensionality reducer."
-            Reference: [`DimensionalityReducer`](https://github.com/phurwicz/hover/blob/main/hover/core/representation/reduction.py)
-
-            | Param        | Type       | Description                        |
-            | :----------- | :--------- | :--------------------------------- |
-            | `vectorizer` | `callable` | the feature -> vector function     |
-            | `method`     | `str`      | arg for `DimensionalityReducer`    |
-            | `**kwargs`   |            | kwargs for `DimensionalityReducer` |
-        """
-        from hover.core.representation.reduction import DimensionalityReducer
-
-        # prepare input vectors to manifold learning
-        fit_subset = [*self.__class__.SCRATCH_SUBSETS, *self.__class__.PUBLIC_SUBSETS]
-        trans_subset = [*self.__class__.PRIVATE_SUBSETS]
-
-        assert not set(fit_subset).intersection(set(trans_subset)), "Unexpected overlap"
-
-        # compute vectors and keep track which where to slice the array for fitting
-        feature_inp = []
-        for _key in fit_subset:
-            feature_inp += self.dfs[_key][self.__class__.FEATURE_KEY].tolist()
-        fit_num = len(feature_inp)
-        for _key in trans_subset:
-            feature_inp += self.dfs[_key][self.__class__.FEATURE_KEY].tolist()
-        trans_arr = np.array([vectorizer(_inp) for _inp in tqdm(feature_inp)])
-
-        # initialize and fit manifold learning reducer using specified subarray
-        self._info(f"Fit-transforming {method.upper()} on {fit_num} samples...")
-        reducer = DimensionalityReducer(trans_arr[:fit_num])
-        fit_embedding = reducer.fit_transform(method, **kwargs)
-
-        # compute embedding of the whole dataset
-        self._info(
-            f"Transforming {method.upper()} on {trans_arr.shape[0]-fit_num} samples..."
-        )
-        trans_embedding = reducer.transform(trans_arr[fit_num:], method)
-
-        # assign x and y coordinates to dataset
-        start_idx = 0
-        for _subset, _embedding in [
-            (fit_subset, fit_embedding),
-            (trans_subset, trans_embedding),
-        ]:
-            # edge case: embedding is too small
-            if _embedding.shape[0] < 1:
-                for _key in _subset:
-                    assert (
-                        self.dfs[_key].shape[0] == 0
-                    ), "Expected empty df due to empty embedding"
-                continue
-            for _key in _subset:
-                _length = self.dfs[_key].shape[0]
-                self.dfs[_key]["x"] = pd.Series(
-                    _embedding[start_idx : (start_idx + _length), 0]
-                )
-                self.dfs[_key]["y"] = pd.Series(
-                    _embedding[start_idx : (start_idx + _length), 1]
-                )
-                start_idx += _length
-
-        return reducer
 
 class SupervisableTextDataset(SupervisableDataset):
     """
