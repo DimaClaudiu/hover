@@ -92,8 +92,10 @@ class SupervisableDataset(Loggable):
 
             return [burner(_d) for _d in dictl]
 
+        print('$$$$')
+        print(raw_dictl)
         self.dictls = {
-            "raw": dictl_transform(raw_dictl, labels='label' in raw_dictl[0].keys()),
+            "raw": dictl_transform(raw_dictl, labels='label' in raw_dictl.keys()),
         }
 
         self.synchronize_dictl_to_df()
