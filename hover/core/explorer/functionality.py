@@ -97,13 +97,18 @@ class BokehDataAnnotator(BokehBaseExplorer):
             Saves the dataframe to a pickle.
             """
             import pandas as pd
+            import sys
+            
+            for i, arg in enumerate(sys.argv):
+                if arg == '--args':
+                    path_root=sys.argv[i+1]
+            path_root = path_root.split('/')[-1]
 
             export_format = event.item
 
             # auto-determine the export path root
-            if path_root is None:
-                timestamp = current_time("%Y%m%d%H%M%S")
-                path_root = f"hover-annotated-df-{timestamp}"
+            timestamp = current_time("%Y%m%d%H%M%S")
+            path_root = f"{path_root}_hover-annotated_{timestamp}"
 
             export_df = pd.concat(self.dfs, axis=0, sort=False, ignore_index=True)
 
