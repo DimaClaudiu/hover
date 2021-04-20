@@ -6,7 +6,7 @@ from functools import wraps
 from traceback import format_exc
 from bokeh.models import PreText
 from bokeh.layouts import column
-from bokeh.palettes import Category10, Category20
+from bokeh.palettes import Category10, Category20, Category20b
 from hover import module_config
 
 
@@ -18,8 +18,14 @@ def auto_label_color(labels):
     use_labels.discard(module_config.ABSTAIN_DECODED)
     use_labels = sorted(use_labels, reverse=False)
 
-    assert len(use_labels) <= 20, "Too many labels to support (max at 20)"
-    palette = Category10[10] if len(use_labels) <= 10 else Category20[20]
+    assert len(use_labels) <= 40, "Too many labels to support (max at 40)"
+    if len(use_labels) <= 10:
+        palette = Category10[10]
+    elif len(use_labels) <= 20:
+        palette = Category20[20]
+    else:
+        palette = Category20b[20] + Category20[20]
+        
     color_dict = {
         module_config.ABSTAIN_DECODED: "#7a7a7a",  # gainsboro hex code
         **{_l: _c for _l, _c in zip(use_labels, palette)},
