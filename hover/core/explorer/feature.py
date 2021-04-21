@@ -138,7 +138,14 @@ class BokehForText(BokehBaseExplorer):
             for (var i = 0; i < arr.length; i++) {
                 arr[i] = determineAttr(text[i]);
                 if(arr[i] == param_pos){
-                    found.push(i);
+                    if(!(source.selected.indices === undefined || source.selected.indices.length == 0))
+                    {
+                        if(source.selected.indices.includes(i))
+                            found.push(i);
+                    }
+                    else
+                        found.push(i);
+                    
                 }
             }
             source.selected.indices = [...new Set(found)]; 
