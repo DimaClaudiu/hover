@@ -100,9 +100,7 @@ class SupervisableDataset(Loggable):
         self.df_deduplicate()
         self.synchronize_df_to_dictl()
         self.setup_widgets()
-        # self.setup_label_coding() # redundant if setup_pop_table() immediately calls this again
         self.setup_file_export()
-        self.setup_pop_table(width_policy="fit", height_policy="fit")
         self.setup_sel_table(width_policy="fit", width=500, height_policy="max", autosize_mode="none", auto_edit=True, editable=True)
         self._good(f"{self.__class__.__name__}: finished initialization.")
 
@@ -189,7 +187,6 @@ class SupervisableDataset(Loggable):
             row(
                 self.selection_viewer,
             ),
-            # self.pop_table,
             self.sel_table,
         )
 
@@ -341,59 +338,6 @@ class SupervisableDataset(Loggable):
         self._callback_export = callback_export
         self.file_exporter.on_click(self._callback_export)
         
-    def setup_pop_table(self, **kwargs):
-        """
-        ???+ note "Set up a bokeh `DataTable` widget for monitoring subset data populations."
-
-            | Param      | Type   | Description                  |
-            | :--------- | :----- | :--------------------------- |
-            | `**kwargs` |        | forwarded to the `DataTable` |
-        """
-        pop_source = ColumnDataSource(dict())
-        pop_columns = [
-            TableColumn(field="label", title="label"),
-            *[
-                TableColumn(field=f"count_{'raw'}", title='count')
-            ],
-            TableColumn(
-                field="color",
-                title="color",
-                formatter=HTMLTemplateFormatter(template=COLOR_GLYPH_TEMPLATE),
-            ),
-        ]
-        self.pop_table = DataTable(source=pop_source, columns=pop_columns, **kwargs)
-
-        def update_population():
-            """
-            Callback function.
-            """
-            # make sure that the label coding is correct
-            self.setup_label_coding()
-
-            # re-compute label population
-            eff_labels = [module_config.ABSTAIN_DECODED, *self.classes]
-            color_dict = auto_label_color(self.classes)
-            eff_colors = [color_dict[_label] for _label in eff_labels]
-
-            pop_data = dict(color=eff_colors, label=eff_labels)
-            _subpop = self.dfs['raw']["label"].value_counts()
-            pop_data[f"count_{'raw'}"] = [
-                _subpop.get(_label, 0) for _label in eff_labels
-            ]
-
-            # push results to bokeh data source
-            pop_source.data = pop_data
-
-            self._good(
-                f"Population updater: latest population with {len(self.classes)} classes."
-            )
-
-        update_population()
-        self.dedup_trigger.on_click(update_population)
-
-        # store the callback so that it can be referenced by other methods
-        self._callback_update_population = update_population
-
     def setup_sel_table(self, **kwargs):
         """
         ???+ note "Set up a bokeh `DataTable` widget for viewing selected data points."
@@ -409,7 +353,7 @@ class SupervisableDataset(Loggable):
             TableColumn(
                 field="domain",
                 title="domain",
-                width=125,
+                width=80,
                 formatter=HTMLTemplateFormatter(template=template)
             ),
                TableColumn(
