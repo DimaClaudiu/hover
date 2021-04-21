@@ -402,19 +402,24 @@ class SupervisableDataset(Loggable):
             | :--------- | :----- | :--------------------------- |
             | `**kwargs` |        | forwarded to the `DataTable` |
         """
+        template = """<span href="#" data-toggle="tooltip" title="<%= value %>"><%= value %></span>"""
+    
         sel_source = ColumnDataSource(dict())
         sel_columns = [
             TableColumn(
                 field="domain",
                 title="domain",
-                width=125
+                width=125,
+                formatter=HTMLTemplateFormatter(template=template)
             ),
                TableColumn(
                 field="text",
                 title="text",
-                width=1000
+                width=1000,
+                formatter=HTMLTemplateFormatter(template=template)
             )
         ]
+        
         self.sel_table = DataTable(source=sel_source, columns=sel_columns, **kwargs)
         print(sel_columns)
 
