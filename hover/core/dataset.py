@@ -361,6 +361,12 @@ class SupervisableDataset(Loggable):
                 title="text",
                 width=1000,
                 formatter=HTMLTemplateFormatter(template=template)
+            ),
+                TableColumn(
+                field="label",
+                title="label",
+                width=40,
+                formatter=HTMLTemplateFormatter(template=template)
             )
         ]
         
